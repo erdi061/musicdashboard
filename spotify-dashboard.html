@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEON // FEED — Spotify Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#05060c;
+    --panel:#0b0f1c;
+    --panel-2:#0e1424;
+    --line:rgba(0,240,255,0.14);
+    --line-soft:rgba(0,240,255,0.06);
+    --cyan:#00f0ff;
+    --magenta:#ff2d7a;
+    --violet:#8a5cff;
+    --amber:#ffb020;
+    --text:#d9f4ff;
+    --text-dim:#5c7788;
+    --text-dimmer:#3a4a58;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{
+    background:var(--void);
+    color:var(--text);
+    font-family:'Share Tech Mono', monospace;
+    min-height:100%;
+    overflow-x:hidden;
+  }
+  body{
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  h1,h2,h3,.display{
+    font-family:'Orbitron', sans-serif;
+  }
+  ::selection{background:var(--magenta);color:#000;}
+
+  /* ---------- backdrop: city skyline + grid ---------- */
+  .backdrop{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(138,92,255,0.25), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(255,45,122,0.12), transparent 60%),
+      linear-gradient(180deg, #05060c 0%, #060a14 45%, #030408 100%);
+  }
+  .backdrop svg{position:absolute; bottom:0; left:0; width:100%; height:42%; opacity:0.55;}
+  .scanlines{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
+    background:repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+  .grid-floor{
+    position:fixed; left:0; right:0; bottom:0; height:38%; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size:48px 48px;
+    -webkit-mask-image:linear-gradient(180deg, transparent, #000 60%);
+    mask-image:linear-gradient(180deg, transparent, #000 60%);
+    transform:perspective(300px) rotateX(55deg);
+    transform-origin:bottom;
+  }
+
+  main{position:relative; z-index:2; max-width:1080px; margin:0 auto; padding:28px 20px 80px;}
+
+  /* ---------- header ---------- */
+  header.top{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    margin-bottom:28px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand .mark{
+    width:34px;height:34px;border:1px solid var(--cyan);
+    clip-path:polygon(20% 0,100% 0,100% 80%,80% 100%,0 100%,0 20%);
+    display:flex;align-items:center;justify-content:center;
+    color:var(--cyan); font-size:16px; box-shadow:0 0 14px rgba(0,240,255,0.35) inset, 0 0 10px rgba(0,240,255,0.25);
+  }
+  .brand h1{font-size:15px; letter-spacing:3px; color:var(--text);}
+  .brand h1 span{color:var(--cyan);}
+  .brand .sub{font-size:10px; color:var(--text-dim); letter-spacing:2px; margin-top:2px;}
+  .conn-status{
+    display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-dim); letter-spacing:1px;
+  }
+  .dot{width:7px;height:7px;border-radius:50%; background:var(--text-dimmer); box-shadow:none;}
+  .dot.on{background:var(--cyan); box-shadow:0 0 8px 2px rgba(0,240,255,0.7); animation:pulse 2s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  button.ghost{
+    background:transparent; border:1px solid var(--line); color:var(--text-dim);
+    font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px;
+    padding:7px 12px; cursor:pointer; clip-path:polygon(8px 0,100% 0,100% 100%,0 100%,0 8px);
+    transition:.15s;
+  }
+  button.ghost:hover{color:var(--cyan); border-color:var(--cyan);}
+
+  /* ---------- panel base ---------- */
+  .panel{
+    background:linear-gradient(180deg, var(--panel-2), var(--panel));
+    border:1px solid var(--line);
+    clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);
+    padding:18px 20px;
+    position:relative;
+  }
+  .panel::before{
+    content:'';position:absolute; top:0; left:0; right:0; height:1px;
+    background:linear-gradient(90deg, var(--cyan), transparent 60%);
+    opacity:0.6;
+  }
+  .panel h2{
+    font-size:11px; letter-spacing:3px; color:var(--text-dim); font-weight:700; margin-bottom:14px;
+  }
+  .panel h2 b{color:var(--cyan);}
+
+  /* ---------- setup screen ---------- */
+  .setup-wrap{display:flex; flex-direction:column; gap:16px; max-width:640px; margin:6vh auto 0;}
+  .setup-wrap .lead{color:var(--text-dim); font-size:13px; line-height:1.7;}
+  .steps{list-style:none; display:flex; flex-direction:column; gap:14px; margin-top:4px;}
+  .steps li{display:flex; gap:12px; align-items:flex-start; font-size:12.5px; line-height:1.6; color:var(--text);}
+  .steps .num{
+    flex:none; width:22px;height:22px; border:1px solid var(--cyan); color:var(--cyan);
+    display:flex; align-items:center; justify-content:center; font-family:'Orbitron'; font-size:11px;
+    clip-path:polygon(4px 0,100% 0,100% 100%,0 100%,0 4px);
+  }
+  .steps code{color:var(--amber); background:rgba(255,176,32,0.08); padding:1px 5px;}
+  .steps a{color:var(--cyan);}
+  .field{display:flex; flex-direction:column; gap:6px; margin-top:6px;}
+  .field label{font-size:10px; letter-spacing:2px; color:var(--text-dim);}
+  .field input{
+    background:var(--void); border:1px solid var(--line); color:var(--text);
+    font-family:'Share Tech Mono',monospace; font-size:13px; padding:10px 12px;
+    outline:none;
+  }
+  .field input:focus{border-color:var(--cyan); box-shadow:0 0 0 2px rgba(0,240,255,0.12);}
+  .cta{
+    background:linear-gradient(90deg, rgba(0,240,255,0.12), rgba(138,92,255,0.12));
+    border:1px solid var(--cyan); color:var(--cyan);
+    font-family:'Orbitron'; font-size:12px; letter-spacing:2px; font-weight:700;
+    padding:13px 18px; cursor:pointer; margin-top:4px;
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+    transition:.15s;
+  }
+  .cta:hover{background:rgba(0,240,255,0.18); box-shadow:0 0 18px rgba(0,240,255,0.25);}
+  .cta:disabled{opacity:0.4; cursor:not-allowed;}
+  .error-box{border:1px solid var(--magenta); color:#ffb3cf; background:rgba(255,45,122,0.08); padding:10px 12px; font-size:12px;}
+
+  /* ---------- dashboard grid ---------- */
+  .dash{display:none; flex-direction:column; gap:18px;}
+  .dash.show{display:flex;}
+  .row{display:grid; gap:18px;}
+  .row.two{grid-template-columns:1.3fr 1fr;}
+  .row.three{grid-template-columns:repeat(3,1fr);}
+  @media (max-width:760px){
+    .row.two, .row.three{grid-template-columns:1fr;}
+  }
+
+  /* now playing */
+  .np{display:flex; gap:18px; align-items:center;}
+  .np img{width:96px;height:96px; border:1px solid var(--line); object-fit:cover;}
+  .np-art-empty{
+    width:96px;height:96px; border:1px dashed var(--line); flex:none;
+    display:flex; align-items:center; justify-content:center; color:var(--text-dimmer); font-size:10px;
+  }
+  .np-info{flex:1; min-width:0;}
+  .np-track{font-family:'Orbitron'; font-size:17px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .np-artist{font-size:12.5px; color:var(--cyan); margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .np-album{font-size:11px; color:var(--text-dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .np-bar{height:3px; background:var(--line-soft); margin-top:12px; position:relative; overflow:hidden;}
+  .np-bar i{position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,var(--cyan),var(--violet)); width:0%;}
+  .np-time{display:flex; justify-content:space-between; font-size:10px; color:var(--text-dimmer); margin-top:5px;}
+  .eq{display:flex; align-items:flex-end; gap:3px; height:22px; flex:none;}
+  .eq i{width:3px; background:var(--cyan); animation:eq 1s infinite ease-in-out; box-shadow:0 0 6px var(--cyan);}
+  .eq i:nth-child(1){animation-delay:-0.9s;}
+  .eq i:nth-child(2){animation-delay:-0.4s;}
+  .eq i:nth-child(3){animation-delay:-0.6s;}
+  .eq i:nth-child(4){animation-delay:-0.2s;}
+  @keyframes eq{0%,100%{height:4px;}50%{height:22px;}}
+  .idle-msg{color:var(--text-dim); font-size:12.5px;}
+  .live-tag{
+    font-size:9px; letter-spacing:2px; color:var(--magenta); border:1px solid var(--magenta);
+    padding:2px 6px; display:inline-flex; align-items:center; gap:5px; margin-bottom:10px;
+  }
+  .live-tag i{width:5px;height:5px;border-radius:50%;background:var(--magenta); animation:pulse 1.3s infinite;}
+
+  /* stat tiles */
+  .stat-tile{display:flex; flex-direction:column; gap:6px;}
+  .stat-num{font-family:'Orbitron'; font-size:34px; color:var(--cyan); line-height:1;}
+  .stat-label{font-size:10.5px; letter-spacing:2px; color:var(--text-dim);}
+  .stat-note{font-size:10px; color:var(--text-dimmer); margin-top:2px; line-height:1.5;}
+
+  /* lists */
+  .rank-list{display:flex; flex-direction:column; gap:2px;}
+  .rank-item{
+    display:flex; align-items:center; gap:10px; padding:8px 4px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .rank-item:last-child{border-bottom:none;}
+  .rank-n{width:18px; font-family:'Orbitron'; font-size:11px; color:var(--text-dimmer); flex:none;}
+  .rank-item img{width:36px;height:36px; object-fit:cover; flex:none; border:1px solid var(--line-soft);}
+  .rank-text{flex:1; min-width:0;}
+  .rank-title{font-size:12.5px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .rank-sub{font-size:10.5px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  .toggle-group{display:flex; gap:0; margin-bottom:14px; border:1px solid var(--line); width:fit-content;}
+  .toggle-group button{
+    background:transparent; border:none; color:var(--text-dim); font-family:'Share Tech Mono';
+    font-size:10.5px; letter-spacing:1px; padding:6px 10px; cursor:pointer; border-right:1px solid var(--line);
+  }
+  .toggle-group button:last-child{border-right:none;}
+  .toggle-group button.active{background:rgba(0,240,255,0.12); color:var(--cyan);}
+
+  .recent-list{display:flex; flex-direction:column; gap:0;}
+  .recent-item{display:flex; align-items:center; gap:10px; padding:7px 4px; border-bottom:1px solid var(--line-soft); font-size:11.5px;}
+  .recent-item:last-child{border-bottom:none;}
+  .recent-time{color:var(--text-dimmer); font-size:10px; width:48px; flex:none;}
+  .recent-name{flex:1; min-width:0; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .recent-artist{color:var(--text-dim); font-size:10.5px; flex:none; max-width:35%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  .skeleton{color:var(--text-dimmer); font-size:11.5px;}
+  .foot-note{text-align:center; color:var(--text-dimmer); font-size:10px; letter-spacing:1px; margin-top:10px;}
+  a{color:var(--cyan);}
+</style>
+</head>
+<body>
+
+<div class="backdrop">
+  <svg viewBox="0 0 1200 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <g fill="#0b0f1c" stroke="#00f0ff" stroke-opacity="0.18">
+      <rect x="0" y="140" width="60" height="160"/>
+      <rect x="70" y="90" width="40" height="210"/>
+      <rect x="120" y="170" width="70" height="130"/>
+      <rect x="200" y="60" width="50" height="240"/>
+      <rect x="260" y="130" width="35" height="170"/>
+      <rect x="305" y="100" width="55" height="200"/>
+      <rect x="370" y="180" width="80" height="120"/>
+      <rect x="460" y="40" width="45" height="260"/>
+      <rect x="515" y="120" width="60" height="180"/>
+      <rect x="585" y="90" width="40" height="210"/>
+      <rect x="635" y="160" width="70" height="140"/>
+      <rect x="715" y="70" width="50" height="230"/>
+      <rect x="775" y="150" width="35" height="150"/>
+      <rect x="820" y="100" width="65" height="200"/>
+      <rect x="895" y="180" width="80" height="120"/>
+      <rect x="985" y="50" width="45" height="250"/>
+      <rect x="1040" y="130" width="60" height="170"/>
+      <rect x="1110" y="95" width="40" height="205"/>
+      <rect x="1160" y="170" width="40" height="130"/>
+    </g>
+  </svg>
+</div>
+<div class="grid-floor"></div>
+<div class="scanlines"></div>
+
+<main>
+  <header class="top">
+    <div class="brand">
+      <div class="mark">S</div>
+      <div>
+        <h1>NEON<span>//</span>FEED</h1>
+        <div class="sub">PERSONAL LISTENING TERMINAL</div>
+      </div>
+    </div>
+    <div class="conn-status">
+      <span class="dot" id="connDot"></span>
+      <span id="connText">DISCONNECTED</span>
+      <button class="ghost" id="disconnectBtn" style="display:none;">DISCONNECT</button>
+    </div>
+  </header>
+
+  <!-- SETUP SCREEN -->
+  <section class="setup-wrap" id="setupScreen">
+    <div class="panel">
+      <h2>◈ SETUP — <b>ONE-TIME</b></h2>
+      <p class="lead">This runs entirely in your browser — no server, no database. Your Spotify data never touches anyone but you and Spotify. Follow these four steps once.</p>
+      <ul class="steps">
+        <li><span class="num">1</span><span>Go to the <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">Spotify Developer Dashboard</a> and log in with your normal Spotify account.</span></li>
+        <li><span class="num">2</span><span>Click <b>Create app</b>. Give it any name/description. For <b>Redirect URI</b>, paste the exact URL you're viewing this page at right now (shown below) — it must match exactly, including <code>http</code>/<code>https</code>.</span></li>
+        <li><span class="num">3</span><span>In the app's settings, tick the <b>Web API</b> checkbox, save, then copy the <b>Client ID</b> shown on the app's dashboard page.</span></li>
+        <li><span class="num">4</span><span>Paste that Client ID below and hit connect. You'll be sent to Spotify to approve access, then dropped back here.</span></li>
+      </ul>
+      <div class="field">
+        <label>YOUR REDIRECT URI (copy this into the Spotify app settings)</label>
+        <input type="text" id="redirectUriDisplay" readonly>
+      </div>
+      <div class="field">
+        <label>SPOTIFY CLIENT ID</label>
+        <input type="text" id="clientIdInput" placeholder="e.g. 8f7a2b1c9d4e4f5a8b6c7d8e9f0a1b2c" autocomplete="off" spellcheck="false">
+      </div>
+      <button class="cta" id="connectBtn">CONNECT TO SPOTIFY →</button>
+      <div class="error-box" id="setupError" style="display:none;"></div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="dash" id="dash">
+
+    <div class="row two">
+      <div class="panel" id="nowPlayingPanel">
+        <h2>◈ NOW PLAYING</h2>
+        <div id="npBody"><span class="skeleton">reading stream…</span></div>
+      </div>
+      <div class="panel">
+        <h2>◈ THIS WEEK</h2>
+        <div class="stat-tile">
+          <div class="stat-num" id="weekMinutes">—</div>
+          <div class="stat-label">MINUTES LISTENED</div>
+          <div class="stat-note">Estimated from your last 50 plays that fall within the current calendar week (Spotify's API only exposes recent play history, so heavy listeners may see a partial count).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row three">
+      <div class="panel">
+        <h2>◈ TOP TRACKS</h2>
+        <div class="toggle-group" data-toggle="tracks">
+          <button data-range="short_term" class="active">4 WEEKS</button>
+          <button data-range="medium_term">6 MONTHS</button>
+          <button data-range="long_term">ALL TIME</button>
+        </div>
+        <div class="rank-list" id="topTracks"><span class="skeleton">loading…</span></div>
+      </div>
+      <div class="panel">
+        <h2>◈ TOP ARTISTS</h2>
+        <div class="toggle-group" data-toggle="artists">
+          <button data-range="short_term" class="active">4 WEEKS</button>
+          <button data-range="medium_term">6 MONTHS</button>
+          <button data-range="long_term">ALL TIME</button>
+        </div>
+        <div class="rank-list" id="topArtists"><span class="skeleton">loading…</span></div>
+      </div>
+      <div class="panel">
+        <h2>◈ RECENTLY PLAYED</h2>
+        <div class="recent-list" id="recentList"><span class="skeleton">loading…</span></div>
+      </div>
+    </div>
+
+    <div class="foot-note">DATA VIA SPOTIFY WEB API · REFRESHES AUTOMATICALLY · TOKENS STORED ONLY IN THIS BROWSER</div>
+  </section>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var LS = {
+    clientId: 'nf_client_id',
+    verifier: 'nf_code_verifier',
+    state: 'nf_oauth_state',
+    access: 'nf_access_token',
+    refresh: 'nf_refresh_token',
+    expires: 'nf_expires_at'
+  };
+
+  var SCOPES = 'user-read-currently-playing user-read-playback-state user-read-recently-played user-top-read';
+  var redirectUri = window.location.origin + window.location.pathname;
+
+  function ls_get(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
+  function ls_set(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
+  function ls_del(k){ try{ window.localStorage.removeItem(k); }catch(e){} }
+
+  document.getElementById('redirectUriDisplay').value = redirectUri;
+
+  // ---------- PKCE helpers ----------
+  function randomString(len){
+    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var out = '';
+    var arr = new Uint8Array(len);
+    window.crypto.getRandomValues(arr);
+    for(var i=0;i<len;i++){ out += chars[arr[i] % chars.length]; }
+    return out;
+  }
+  function base64urlEncode(buffer){
+    var bytes = new Uint8Array(buffer);
+    var str = '';
+    for(var i=0;i<bytes.byteLength;i++){ str += String.fromCharCode(bytes[i]); }
+    return window.btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function sha256(plain){
+    var encoder = new TextEncoder();
+    var data = encoder.encode(plain);
+    return window.crypto.subtle.digest('SHA-256', data);
+  }
+
+  function showSetupError(msg){
+    var box = document.getElementById('setupError');
+    box.textContent = msg;
+    box.style.display = 'block';
+  }
+
+  // ---------- OAuth kickoff ----------
+  document.getElementById('connectBtn').addEventListener('click', function(){
+    var clientId = document.getElementById('clientIdInput').value.trim();
+    if(!clientId){ showSetupError('Paste your Spotify Client ID first.'); return; }
+    ls_set(LS.clientId, clientId);
+
+    var verifier = randomString(64);
+    var state = randomString(16);
+    ls_set(LS.verifier, verifier);
+    ls_set(LS.state, state);
+
+    sha256(verifier).then(function(hashed){
+      var challenge = base64urlEncode(hashed);
+      var params = new URLSearchParams({
+        client_id: clientId,
+        response_type: 'code',
+        redirect_uri: redirectUri,
+        state: state,
+        scope: SCOPES,
+        code_challenge_method: 'S256',
+        code_challenge: challenge
+      });
+      window.location.href = 'https://accounts.spotify.com/authorize?' + params.toString();
+    });
+  });
+
+  document.getElementById('disconnectBtn').addEventListener('click', function(){
+    [LS.access, LS.refresh, LS.expires, LS.verifier, LS.state].forEach(ls_del);
+    window.location.href = redirectUri;
+  });
+
+  // ---------- token exchange ----------
+  function exchangeCodeForToken(code){
+    var clientId = ls_get(LS.clientId);
+    var verifier = ls_get(LS.verifier);
+    var body = new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri,
+      code_verifier: verifier
+    });
+    return fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: body.toString()
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if(data.error){ throw new Error(data.error_description || data.error); }
+      storeTokens(data);
+    });
+  }
+
+  function refreshToken(){
+    var clientId = ls_get(LS.clientId);
+    var refresh = ls_get(LS.refresh);
+    if(!refresh || !clientId) return Promise.reject(new Error('no refresh token'));
+    var body = new URLSearchParams({
+      client_id: clientId,
+      grant_type: 'refresh_token',
+      refresh_token: refresh
+    });
+    return fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: {'Content-Type':'application/x-www-form-urlencoded'},
+      body: body.toString()
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if(data.error){ throw new Error(data.error_description || data.error); }
+      storeTokens(data);
+    });
+  }
+
+  function storeTokens(data){
+    ls_set(LS.access, data.access_token);
+    if(data.refresh_token){ ls_set(LS.refresh, data.refresh_token); }
+    var expiresAt = Date.now() + (data.expires_in * 1000) - 15000;
+    ls_set(LS.expires, String(expiresAt));
+  }
+
+  function ensureValidToken(){
+    var access = ls_get(LS.access);
+    var expires = parseInt(ls_get(LS.expires) || '0', 10);
+    if(access && Date.now() < expires){ return Promise.resolve(access); }
+    return refreshToken().then(function(){ return ls_get(LS.access); });
+  }
+
+  function api(path){
+    return ensureValidToken().then(function(token){
+      return fetch('https://api.spotify.com/v1' + path, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+    }).then(function(res){
+      if(res.status === 204) return null;
+      if(!res.ok){ throw new Error('Spotify API error ' + res.status); }
+      return res.json();
+    });
+  }
+
+  // ---------- boot ----------
+  function boot(){
+    var urlParams = new URLSearchParams(window.location.search);
+    var code = urlParams.get('code');
+    var state = urlParams.get('state');
+    var storedState = ls_get(LS.state);
+
+    if(code){
+      if(state !== storedState){
+        showSetupError('State mismatch — please try connecting again.');
+        return;
+      }
+      exchangeCodeForToken(code).then(function(){
+        window.history.replaceState({}, document.title, redirectUri);
+        enterDashboard();
+      }).catch(function(err){
+        showSetupError('Connection failed: ' + err.message);
+      });
+      return;
+    }
+
+    var access = ls_get(LS.access);
+    var refresh = ls_get(LS.refresh);
+    if(access && refresh){
+      enterDashboard();
+    } else {
+      var savedClientId = ls_get(LS.clientId);
+      if(savedClientId){ document.getElementById('clientIdInput').value = savedClientId; }
+    }
+  }
+
+  function setConnected(on){
+    document.getElementById('connDot').className = 'dot' + (on ? ' on' : '');
+    document.getElementById('connText').textContent = on ? 'CONNECTED' : 'DISCONNECTED';
+    document.getElementById('disconnectBtn').style.display = on ? 'inline-block' : 'none';
+  }
+
+  function enterDashboard(){
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('dash').classList.add('show');
+    setConnected(true);
+    refreshNowPlaying();
+    loadTop('tracks', 'short_term');
+    loadTop('artists', 'short_term');
+    loadRecentlyPlayed();
+    setInterval(refreshNowPlaying, 8000);
+    setInterval(loadRecentlyPlayed, 60000);
+  }
+
+  // ---------- now playing ----------
+  var localProgress = null, localDuration = null, localStartedAt = null, tickTimer = null;
+
+  function fmtTime(ms){
+    var s = Math.floor(ms/1000);
+    var m = Math.floor(s/60);
+    s = s % 60;
+    return m + ':' + (s<10?'0':'') + s;
+  }
+
+  function renderNowPlaying(data){
+    var body = document.getElementById('npBody');
+    if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
+
+    if(!data || !data.item){
+      body.innerHTML = '<p class="idle-msg">Nothing playing right now. Hit play on Spotify and this updates within a few seconds.</p>';
+      return;
+    }
+    var item = data.item;
+    var artists = item.artists.map(function(a){return a.name;}).join(', ');
+    var art = (item.album && item.album.images && item.album.images[0]) ? item.album.images[0].url : null;
+    var isPlaying = data.is_playing;
+
+    localProgress = data.progress_ms;
+    localDuration = item.duration_ms;
+    localStartedAt = Date.now();
+
+    body.innerHTML =
+      (isPlaying ? '<span class="live-tag"><i></i>LIVE</span>' : '') +
+      '<div class="np">' +
+        (art ? '<img src="'+art+'" alt="">' : '<div class="np-art-empty">NO ART</div>') +
+        '<div class="np-info">' +
+          '<div class="np-track">'+escapeHtml(item.name)+'</div>' +
+          '<div class="np-artist">'+escapeHtml(artists)+'</div>' +
+          '<div class="np-album">'+escapeHtml(item.album ? item.album.name : '')+'</div>' +
+          '<div class="np-bar"><i id="npProgressFill"></i></div>' +
+          '<div class="np-time"><span id="npElapsed">'+fmtTime(localProgress)+'</span><span>'+fmtTime(localDuration)+'</span></div>' +
+        '</div>' +
+        (isPlaying ? '<div class="eq"><i></i><i></i><i></i><i></i></div>' : '') +
+      '</div>';
+
+    updateBar();
+    if(isPlaying){
+      tickTimer = setInterval(updateBar, 1000);
+    }
+  }
+
+  function updateBar(){
+    if(localDuration == null) return;
+    var elapsed = localProgress + (Date.now() - localStartedAt);
+    if(elapsed > localDuration) elapsed = localDuration;
+    var pct = (elapsed / localDuration) * 100;
+    var fill = document.getElementById('npProgressFill');
+    var elapsedEl = document.getElementById('npElapsed');
+    if(fill) fill.style.width = pct + '%';
+    if(elapsedEl) elapsedEl.textContent = fmtTime(elapsed);
+  }
+
+  function refreshNowPlaying(){
+    api('/me/player/currently-playing?additional_types=track').then(renderNowPlaying).catch(function(){
+      document.getElementById('npBody').innerHTML = '<p class="idle-msg">Could not reach Spotify — will retry shortly.</p>';
+    });
+  }
+
+  // ---------- top tracks / artists ----------
+  function loadTop(type, range){
+    var containerId = type === 'tracks' ? 'topTracks' : 'topArtists';
+    var container = document.getElementById(containerId);
+    container.innerHTML = '<span class="skeleton">loading…</span>';
+    api('/me/top/' + type + '?time_range=' + range + '&limit=10').then(function(data){
+      if(!data || !data.items || data.items.length === 0){
+        container.innerHTML = '<span class="skeleton">Not enough listening history for this range yet.</span>';
+        return;
+      }
+      var html = '';
+      data.items.forEach(function(it, idx){
+        var img = null, title, sub;
+        if(type === 'tracks'){
+          img = it.album && it.album.images && it.album.images[it.album.images.length-1] ? it.album.images[it.album.images.length-1].url : null;
+          title = it.name;
+          sub = it.artists.map(function(a){return a.name;}).join(', ');
+        } else {
+          img = it.images && it.images[it.images.length-1] ? it.images[it.images.length-1].url : null;
+          title = it.name;
+          sub = (it.genres && it.genres.length) ? it.genres.slice(0,2).join(' / ') : 'artist';
+        }
+        html += '<div class="rank-item">' +
+          '<span class="rank-n">'+(idx+1<10?'0':'')+(idx+1)+'</span>' +
+          (img ? '<img src="'+img+'" alt="">' : '') +
+          '<div class="rank-text"><div class="rank-title">'+escapeHtml(title)+'</div><div class="rank-sub">'+escapeHtml(sub)+'</div></div>' +
+        '</div>';
+      });
+      container.innerHTML = html;
+    }).catch(function(){
+      container.innerHTML = '<span class="skeleton">Could not load — try again shortly.</span>';
+    });
+  }
+
+  document.querySelectorAll('.toggle-group').forEach(function(group){
+    group.addEventListener('click', function(e){
+      var btn = e.target.closest('button');
+      if(!btn) return;
+      group.querySelectorAll('button').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      var type = group.getAttribute('data-toggle');
+      loadTop(type, btn.getAttribute('data-range'));
+    });
+  });
+
+  // ---------- recently played + weekly minutes ----------
+  function startOfWeek(d){
+    var day = d.getDay(); // 0 = Sunday
+    var diff = (day === 0 ? 6 : day - 1); // treat Monday as start
+    var monday = new Date(d);
+    monday.setDate(d.getDate() - diff);
+    monday.setHours(0,0,0,0);
+    return monday;
+  }
+
+  function loadRecentlyPlayed(){
+    var listEl = document.getElementById('recentList');
+    api('/me/player/recently-played?limit=50').then(function(data){
+      if(!data || !data.items || data.items.length === 0){
+        listEl.innerHTML = '<span class="skeleton">No recent play history yet.</span>';
+        document.getElementById('weekMinutes').textContent = '0';
+        return;
+      }
+      var weekStart = startOfWeek(new Date());
+      var totalMs = 0;
+      var html = '';
+      data.items.forEach(function(entry){
+        var playedAt = new Date(entry.played_at);
+        if(playedAt >= weekStart){ totalMs += entry.track.duration_ms; }
+        var t = playedAt.toTimeString().slice(0,5);
+        html += '<div class="recent-item">' +
+          '<span class="recent-time">'+t+'</span>' +
+          '<span class="recent-name">'+escapeHtml(entry.track.name)+'</span>' +
+          '<span class="recent-artist">'+escapeHtml(entry.track.artists.map(function(a){return a.name;}).join(', '))+'</span>' +
+        '</div>';
+      });
+      listEl.innerHTML = html;
+      document.getElementById('weekMinutes').textContent = Math.round(totalMs / 60000);
+    }).catch(function(){
+      listEl.innerHTML = '<span class="skeleton">Could not load recent plays.</span>';
+    });
+  }
+
+  function escapeHtml(str){
+    if(!str) return '';
+    return str.replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
