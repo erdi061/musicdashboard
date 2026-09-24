@@ -4,11 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Drift — Spotify Dashboard</title>
+<title>Drift — Spotify Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400;1,500&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
+    /* Default theme: warm, hazy, before we know your genres */
+    --sky-a:#f7ecd3;
+    --sky-b:#f2e0b8;
+    --sky-c:#fff6e6;
+    --sky-d:#efd9a8;
+    --paper:#fffaf0;
+    --glass:rgba(255,255,255,0.55);
+    --glass-border:rgba(255,255,255,0.75);
+    --ink:#5a4632;
+    --ink-soft:#9c8465;
+    --ink-faint:#c9b593;
+    --bloom:#d9a24e;
+    --bloom-2:#c98a4b;
+    --bloom-3:#e8c07a;
     /* Default theme: warm, hazy, before we know your genres */
     --sky-a:#f7ecd3;
     --sky-b:#f2e0b8;
@@ -37,6 +52,10 @@
     padding-top:env(safe-area-inset-top,0px);
     padding-bottom:env(safe-area-inset-bottom,0px);
   }
+  h1,h2,h3,.display{ font-family:'Fraunces', serif; font-weight:500; }
+  ::selection{background:var(--bloom-3); color:#fff;}
+ 
+  /* ---------- ambient background ---------- */
   h1,h2,h3,.display{ font-family:'Fraunces', serif; font-weight:500; }
   ::selection{background:var(--bloom-3); color:#fff;}
  
@@ -141,6 +160,7 @@
     outline:none;
   }
   .field input:focus{border-color:var(--bloom); box-shadow:0 0 0 3px rgba(217,162,78,0.2);}
+  .field input:focus{border-color:var(--bloom); box-shadow:0 0 0 3px rgba(217,162,78,0.2);}
   .cta{
     background:linear-gradient(135deg, var(--bloom), var(--bloom-2));
     border:none; color:#fff;
@@ -148,7 +168,17 @@
     padding:14px 20px; cursor:pointer; margin-top:6px; border-radius:999px;
     box-shadow:0 8px 22px rgba(217,162,78,0.4);
     transition:.2s;
+    background:linear-gradient(135deg, var(--bloom), var(--bloom-2));
+    border:none; color:#fff;
+    font-family:'Quicksand'; font-size:13.5px; letter-spacing:0.5px; font-weight:700;
+    padding:14px 20px; cursor:pointer; margin-top:6px; border-radius:999px;
+    box-shadow:0 8px 22px rgba(217,162,78,0.4);
+    transition:.2s;
   }
+  .cta:hover{transform:translateY(-1px); box-shadow:0 10px 26px rgba(217,162,78,0.5);}
+  .cta:disabled{opacity:0.5; cursor:not-allowed; transform:none;}
+  .error-box{border:1px solid rgba(200,90,70,0.5); color:var(--ink); background:rgba(200,90,70,0.12); padding:11px 14px; border-radius:14px; font-size:12.5px;}
+ 
   .cta:hover{transform:translateY(-1px); box-shadow:0 10px 26px rgba(217,162,78,0.5);}
   .cta:disabled{opacity:0.5; cursor:not-allowed; transform:none;}
   .error-box{border:1px solid rgba(200,90,70,0.5); color:var(--ink); background:rgba(200,90,70,0.12); padding:11px 14px; border-radius:14px; font-size:12.5px;}
@@ -646,11 +676,23 @@
   function startOfWeek(d){
     var day = d.getDay();
     var diff = (day === 0 ? 6 : day - 1);
+    var day = d.getDay();
+    var diff = (day === 0 ? 6 : day - 1);
     var monday = new Date(d);
     monday.setDate(d.getDate() - diff);
     monday.setHours(0,0,0,0);
     return monday;
   }
+ 
+  function setWeekMinutes(value, note){
+    var el = document.getElementById('weekMinutes');
+    if(el){ el.textContent = value; }
+    if(note !== undefined){
+      var noteEl = document.getElementById('weekMinutesNote');
+      if(noteEl){ noteEl.textContent = note; }
+    }
+  }
+ 
  
   function setWeekMinutes(value, note){
     var el = document.getElementById('weekMinutes');
@@ -667,6 +709,8 @@
       if(!data || !data.items || data.items.length === 0){
         listEl.innerHTML = '<span class="skeleton">No recent play history yet — play something on Spotify first.</span>';
         setWeekMinutes('0');
+        listEl.innerHTML = '<span class="skeleton">No recent play history yet — play something on Spotify first.</span>';
+        setWeekMinutes('0');
         return;
       }
       var weekStart = startOfWeek(new Date());
@@ -674,9 +718,17 @@
       var html = '';
       var oldestPlayedAt = null;
  
+      var oldestPlayedAt = null;
+ 
       data.items.forEach(function(entry){
         if(!entry || !entry.track){ return; }
+        if(!entry || !entry.track){ return; }
         var playedAt = new Date(entry.played_at);
+        if(isNaN(playedAt.getTime())){ return; }
+        if(oldestPlayedAt === null || playedAt < oldestPlayedAt){ oldestPlayedAt = playedAt; }
+        if(playedAt >= weekStart){
+          totalMs += (entry.track.duration_ms || 0);
+        }
         if(isNaN(playedAt.getTime())){ return; }
         if(oldestPlayedAt === null || playedAt < oldestPlayedAt){ oldestPlayedAt = playedAt; }
         if(playedAt >= weekStart){
@@ -687,8 +739,195 @@
           '<span class="recent-time">'+t+'</span>' +
           '<span class="recent-name">'+escapeHtml(entry.track.name || 'Unknown')+'</span>' +
           '<span class="recent-artist">'+escapeHtml((entry.track.artists||[]).map(function(a){return a.name;}).join(', '))+'</span>' +
+          '<span class="recent-name">'+escapeHtml(entry.track.name || 'Unknown')+'</span>' +
+          '<span class="recent-artist">'+escapeHtml((entry.track.artists||[]).map(function(a){return a.name;}).join(', '))+'</span>' +
         '</div>';
       });
+ 
+      listEl.innerHTML = html || '<span class="skeleton">No recent play history yet.</span>';
+ 
+      var minutes = Math.round(totalMs / 60000);
+      var partial = oldestPlayedAt !== null && oldestPlayedAt >= weekStart;
+      var note = partial
+        ? 'Based on your last 50 plays — all of them fall within this week, so if you listen a lot the real total is likely higher than this.'
+        : 'Based on your last 50 plays that fall within the current week.';
+      setWeekMinutes(String(minutes), note);
+    }).catch(function(err){
+      listEl.innerHTML = '<span class="skeleton">Could not load recent plays — try again shortly.</span>';
+      setWeekMinutes('—', 'Could not reach Spotify just now — this will retry automatically.');
+      console.error('recently played error', err);
+    });
+  }
+ 
+  // ================= GENRE MOOD ENGINE =================
+  // Each mood carries a full set of page tokens plus keywords used to
+  // match against Spotify's free-text artist genres.
+  var MOODS = {
+    embers: {
+      label: 'embers', keywords: ['metal','hardcore','grind','grunge','industrial','screamo','thrash','doom','sludge','nu metal','emo','post-hardcore'],
+      vars: {'--sky-a':'#1a1210','--sky-b':'#241611','--sky-c':'#150d0b','--sky-d':'#2b1712','--paper':'#120c0a',
+        '--glass':'rgba(35,22,17,0.55)','--glass-border':'rgba(255,120,70,0.18)',
+        '--ink':'#f2e4d8','--ink-soft':'#c9a690','--ink-faint':'#8a6a58',
+        '--bloom':'#ff5a36','--bloom-2':'#c2381f','--bloom-3':'#ffb26b'}
+    },
+    haze: {
+      label: 'haze', keywords: ['indie','dream pop','shoegaze','bedroom','slowcore','jangle','twee','indietronica'],
+      vars: {'--sky-a':'#eef1f7','--sky-b':'#e3e7f2','--sky-c':'#f5f1f6','--sky-d':'#e9e3ef','--paper':'#f8f8fb',
+        '--glass':'rgba(255,255,255,0.55)','--glass-border':'rgba(255,255,255,0.75)',
+        '--ink':'#4c4e5c','--ink-soft':'#8b8da0','--ink-faint':'#c3c5d3',
+        '--bloom':'#a9b8e8','--bloom-2':'#8f9fd6','--bloom-3':'#8fd0c9'}
+    },
+    velvet: {
+      label: 'velvet', keywords: ['r&b','rnb','soul','quiet storm','neo soul'],
+      vars: {'--sky-a':'#2a1420','--sky-b':'#331a28','--sky-c':'#1f0f18','--sky-d':'#3c1e2c','--paper':'#1c0e15',
+        '--glass':'rgba(45,20,32,0.5)','--glass-border':'rgba(240,170,200,0.18)',
+        '--ink':'#f3dbe6','--ink-soft':'#cf9fb6','--ink-faint':'#8c5e70',
+        '--bloom':'#e08fb0','--bloom-2':'#b85e86','--bloom-3':'#f3c98a'}
+    },
+    neon: {
+      label: 'neon pulse', keywords: ['house','techno','edm','electro','synthwave','trance','dubstep','drum and bass','dnb','garage','electronic','idm'],
+      vars: {'--sky-a':'#0c1220','--sky-b':'#0f1a2c','--sky-c':'#0a0e18','--sky-d':'#141d33','--paper':'#090d16',
+        '--glass':'rgba(16,24,40,0.5)','--glass-border':'rgba(120,200,255,0.18)',
+        '--ink':'#dff3ff','--ink-soft':'#8fb8d6','--ink-faint':'#4d6b85',
+        '--bloom':'#4ce0ff','--bloom-2':'#8a6bff','--bloom-3':'#ff5fd8'}
+    },
+    midnight: {
+      label: 'midnight static', keywords: ['hip hop','rap','trap','drill','grime'],
+      vars: {'--sky-a':'#160f22','--sky-b':'#1e1430','--sky-c':'#100a1a','--sky-d':'#241a38','--paper':'#0e0916',
+        '--glass':'rgba(26,17,38,0.5)','--glass-border':'rgba(180,120,255,0.18)',
+        '--ink':'#ece3f7','--ink-soft':'#b39fd1','--ink-faint':'#6c5a88',
+        '--bloom':'#b673ff','--bloom-2':'#6f4fd6','--bloom-3':'#ff9ecf'}
+    },
+    evergreen: {
+      label: 'evergreen', keywords: ['folk','country','americana','bluegrass','singer-songwriter','acoustic'],
+      vars: {'--sky-a':'#eef2e6','--sky-b':'#e6ecd8','--sky-c':'#f5f1e4','--sky-d':'#e0e6cc','--paper':'#f9f8f0',
+        '--glass':'rgba(255,255,255,0.55)','--glass-border':'rgba(255,255,255,0.75)',
+        '--ink':'#4a5238','--ink-soft':'#828c68','--ink-faint':'#bcc4a4',
+        '--bloom':'#8fa66b','--bloom-2':'#6f8f6a','--bloom-3':'#c9a25a'}
+    },
+    ivory: {
+      label: 'ivory keys', keywords: ['classical','jazz','piano','orchestral','bossa nova','instrumental','opera','chamber music'],
+      vars: {'--sky-a':'#f3ede0','--sky-b':'#ece1cb','--sky-c':'#faf6ec','--sky-d':'#e6dabf','--paper':'#fdfaf3',
+        '--glass':'rgba(255,255,255,0.55)','--glass-border':'rgba(255,255,255,0.78)',
+        '--ink':'#4a4032','--ink-soft':'#8f8267','--ink-faint':'#c9bfa6',
+        '--bloom':'#c9a24a','--bloom-2':'#8a7a5a','--bloom-3':'#d9c691'}
+    },
+    tidewater: {
+      label: 'tidewater', keywords: ['reggae','dancehall','afrobeat','ska','dub','soca','calypso'],
+      vars: {'--sky-a':'#fff4dc','--sky-b':'#e7f4dc','--sky-c':'#fff0e0','--sky-d':'#d9f0d0','--paper':'#fffaf0',
+        '--glass':'rgba(255,255,255,0.55)','--glass-border':'rgba(255,255,255,0.75)',
+        '--ink':'#3f4a2e','--ink-soft':'#7d8a5c','--ink-faint':'#bcc99a',
+        '--bloom':'#f4b942','--bloom-2':'#4a9e5c','--bloom-3':'#e8734a'}
+    },
+    wildflower: {
+      label: 'wildflower', keywords: ['pop','k-pop','kpop','bubblegum','dance pop','electropop','europop'],
+      vars: {'--sky-a':'#fdeef2','--sky-b':'#fff0d9','--sky-c':'#eaf6ff','--sky-d':'#fdf0ff','--paper':'#fffaf9',
+        '--glass':'rgba(255,255,255,0.6)','--glass-border':'rgba(255,255,255,0.8)',
+        '--ink':'#5c4a52','--ink-soft':'#a3818e','--ink-faint':'#d9bcc6',
+        '--bloom':'#ff8fab','--bloom-2':'#e07a95','--bloom-3':'#ffc857'}
+    }
+  };
+  var DEFAULT_VARS = {'--sky-a':'#f7ecd3','--sky-b':'#f2e0b8','--sky-c':'#fff6e6','--sky-d':'#efd9a8','--paper':'#fffaf0',
+    '--glass':'rgba(255,255,255,0.55)','--glass-border':'rgba(255,255,255,0.75)',
+    '--ink':'#5a4632','--ink-soft':'#9c8465','--ink-faint':'#c9b593',
+    '--bloom':'#d9a24e','--bloom-2':'#c98a4b','--bloom-3':'#e8c07a'};
+ 
+  // Order matters: more specific/aggressive genres are checked before
+  // the very broad "pop" catch-all so e.g. "pop punk" lands on embers.
+  var MOOD_ORDER = ['embers','midnight','neon','velvet','haze','evergreen','ivory','tidewater','wildflower'];
+ 
+  function classifyGenre(genreStr){
+    var g = genreStr.toLowerCase();
+    for(var i=0;i<MOOD_ORDER.length;i++){
+      var mood = MOODS[MOOD_ORDER[i]];
+      for(var j=0;j<mood.keywords.length;j++){
+        if(g.indexOf(mood.keywords[j]) !== -1){ return MOOD_ORDER[i]; }
+      }
+    }
+    return null;
+  }
+ 
+  var baselineScore = {};
+  var liveScore = {};
+ 
+  function addGenres(scoreObj, genres, weight){
+    if(!genres) return;
+    genres.forEach(function(g){
+      var key = classifyGenre(g);
+      if(key){ scoreObj[key] = (scoreObj[key] || 0) + weight; }
+    });
+  }
+ 
+  function combinedScore(){
+    var total = {};
+    Object.keys(baselineScore).forEach(function(k){ total[k] = (total[k]||0) + baselineScore[k]; });
+    Object.keys(liveScore).forEach(function(k){ total[k] = (total[k]||0) + liveScore[k]; });
+    return total;
+  }
+ 
+  function topTwoMoods(scoreObj){
+    var entries = Object.keys(scoreObj).map(function(k){ return [k, scoreObj[k]]; });
+    entries.sort(function(a,b){ return b[1]-a[1]; });
+    if(entries.length === 0 || entries[0][1] <= 0){ return [null, null]; }
+    var primary = entries[0][0];
+    var secondary = (entries.length > 1 && entries[1][1] > 0) ? entries[1][0] : null;
+    return [primary, secondary];
+  }
+ 
+  function applyMood(){
+    var result = topTwoMoods(combinedScore());
+    var primaryKey = result[0], secondaryKey = result[1];
+    var root = document.documentElement.style;
+    var vars = primaryKey ? MOODS[primaryKey].vars : DEFAULT_VARS;
+ 
+    Object.keys(vars).forEach(function(k){ root.setProperty(k, vars[k]); });
+ 
+    var orb4 = document.querySelector('.orb.o4');
+    if(orb4){
+      var secondaryColor = secondaryKey ? MOODS[secondaryKey].vars['--bloom'] : vars['--bloom-3'];
+      orb4.style.background = secondaryColor;
+    }
+ 
+    var badge = document.getElementById('moodBadge');
+    var badgeText = document.getElementById('moodBadgeText');
+    if(primaryKey){
+      var label = MOODS[primaryKey].label + (secondaryKey ? ' · ' + MOODS[secondaryKey].label : '');
+      badgeText.textContent = 'vibe — ' + label;
+      badge.classList.add('show');
+    } else {
+      badgeText.textContent = 'vibe — settling in';
+      badge.classList.add('show');
+    }
+  }
+ 
+  function initMoodEngine(){
+    // Baseline: your broader 6-month taste, independent of the toggle
+    // buttons in the Top Artists panel above.
+    api('/me/top/artists?time_range=medium_term&limit=15').then(function(data){
+      if(data && data.items){
+        data.items.forEach(function(artist, idx){
+          var weight = Math.max(1, 10 - idx);
+          addGenres(baselineScore, artist.genres, weight);
+        });
+      }
+      applyMood();
+    }).catch(function(err){
+      console.error('mood baseline error', err);
+      applyMood();
+    });
+  }
+ 
+  function updateLiveMoodFromArtistIds(ids){
+    api('/artists?ids=' + ids.join(',')).then(function(data){
+      liveScore = {};
+      if(data && data.artists){
+        data.artists.forEach(function(artist){
+          if(artist){ addGenres(liveScore, artist.genres, 18); }
+        });
+      }
+      applyMood();
+    }).catch(function(err){
+      console.error('mood live error', err);
  
       listEl.innerHTML = html || '<span class="skeleton">No recent play history yet.</span>';
  
